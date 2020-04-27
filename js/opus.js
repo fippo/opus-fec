@@ -9,6 +9,22 @@ const SIGNAL_TYPES = {
     VOICED: 2,
 };
 
+// define.h
+const MAX_LPC_ORDER = 16;
+const NLSF_QUANT_MAX_AMPLITUDE = 4;
+const MAX_NB_SUBFR = 4;
+const MAX_FS_KHZ = 16;
+const SUB_FRAME_LENGTH_MS = 5;
+const MAX_SUB_FRAME_LENGTH = ( SUB_FRAME_LENGTH_MS * MAX_FS_KHZ );
+const MAX_FRAME_LENGTH_MS = ( SUB_FRAME_LENGTH_MS * MAX_NB_SUBFR );
+const MAX_FRAME_LENGTH = ( MAX_FRAME_LENGTH_MS * MAX_FS_KHZ );
+
+const SHELL_CODEC_FRAME_LENGTH = 16;
+const LOG2_SHELL_CODEC_FRAME_LENGTH = 4;
+const MAX_NB_SHELL_BLOCKS = ( MAX_FRAME_LENGTH / SHELL_CODEC_FRAME_LENGTH )
+const SILK_MAX_PULSES = 16
+
+
 const EC_SYM_BITS = 8;
 const EC_CODE_BITS = 32;
 const EC_SYM_MAX = (1 << EC_SYM_BITS) - 1;
@@ -215,6 +231,59 @@ const silk_NLSF_DELTA_MIN_WB_Q15 = new Uint16Array([
        347
 ]);
 
+const silk_pulses_per_block_iCDF = [
+	new Uint8Array([
+       125,     51,     26,     18,     15,     12,     11,     10,
+         9,      8,      7,      6,      5,      4,      3,      2,
+         1,      0
+	]),
+	new Uint8Array([
+       198,    105,     45,     22,     15,     12,     11,     10,
+         9,      8,      7,      6,      5,      4,      3,      2,
+         1,      0
+	]),
+	new Uint8Array([
+       213,    162,    116,     83,     59,     43,     32,     24,
+        18,     15,     12,      9,      7,      6,      5,      3,
+         2,      0
+	]),
+	new Uint8Array([
+       239,    187,    116,     59,     28,     16,     11,     10,
+         9,      8,      7,      6,      5,      4,      3,      2,
+         1,      0
+	]),
+	new Uint8Array([
+       250,    229,    188,    135,     86,     51,     30,     19,
+        13,     10,      8,      6,      5,      4,      3,      2,
+         1,      0
+	]),
+	new Uint8Array([
+       249,    235,    213,    185,    156,    128,    103,     83,
+        66,     53,     42,     33,     26,     21,     17,     13,
+        10,      0
+	]),
+	new Uint8Array([
+       254,    249,    235,    206,    164,    118,     77,     46,
+        27,     16,     10,      7,      5,      4,      3,      2,
+         1,      0
+	]),
+	new Uint8Array([
+       255,    253,    249,    239,    220,    191,    156,    119,
+        85,     57,     37,     23,     15,     10,      6,      4,
+         2,      0
+	]),
+	new Uint8Array([
+       255,    253,    251,    246,    237,    223,    203,    179,
+       152,    124,     98,     75,     55,     40,     29,     21,
+        15,      0
+	]),
+	new Uint8Array([
+       255,    254,    253,    247,    220,    162,    106,     67,
+        42,     28,     18,     12,      9,      6,      4,      3,
+         2,      0
+	]),
+];
+
 const silk_NLSF_CB_WB = { // Wideband codebook.
     nVectors: 32,
     order: 16,
@@ -343,9 +412,6 @@ function silk_NLSF_unpack(ec_ix, pred_Q8, NLSF_CB, CB1_index) {
     }
 }
 
-const MAX_LPC_ORDER = 16;
-const NLSF_QUANT_MAX_AMPLITUDE = 4;
-const MAX_NB_SUBFR = 4;
 function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCoding) {
     // console.log('ITELL1', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
     let Ix;
@@ -402,8 +468,44 @@ function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCodin
     state.indices.Seed = rangeDec.ec_dec_icdf(silk_uniform4_iCDF, 8);
     //console.log('ITELL9', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 }
-/*
-function silk_decode_pulses(rangeDec, signalType) {
-    rangeDec.ec_dec_icdf(silk_rate_levels_iCDF[signalType >> 1], 8);
+
+function silk_decode_pulses(rangeDec, pulses, signalType, quantOffsetType, frame_length) {
+    console.log('PTELL1', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+    const sum_pulses = new Int32Array(MAX_NB_SHELL_BLOCKS);
+    const nLshifts = new Int32Array(MAX_NB_SHELL_BLOCKS);
+
+    const RateLevelIndex = rangeDec.ec_dec_icdf(silk_rate_levels_iCDF[ signalType >> 1 ], 8 );
+    console.log('PTELL2', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+
+    let iter = silk_RSHIFT( frame_length, LOG2_SHELL_CODEC_FRAME_LENGTH );
+	if( iter * SHELL_CODEC_FRAME_LENGTH < frame_length ) {
+        silk_assert( frame_length == 12 * 10 ); /* Make sure only happens for 10 ms @ 12 kHz */
+        iter++;
+    }
+
+	/***************************************************/
+	/* Sum-Weighted-Pulses Decoding                    */
+	/***************************************************/
+    let cdf_ptr = RateLevelIndex;
+	for (let i = 0; i < iter; i++) {
+        nLshifts[i] = 0;
+        sum_pulses[ i ] = rangeDec.ec_dec_icdf(silk_pulses_per_block_iCDF[cdf_ptr], 8 );
+        while( sum_pulses[ i ] == SILK_MAX_PULSES + 1 ) {
+            nLshifts[i]++;
+            /* When we've already got 10 LSBs, we shift the table to not allow (SILK_MAX_PULSES + 1) */
+            sum_pulses[ i ] = rangeDec.ec_dec_icdf( silk_pulses_per_block_iCDF[ N_RATE_LEVELS - 1] + ( nLshifts[ i ] === 10 ), 8 );
+
+        }
+    }
+    console.log('PTELL3', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+
+    /***************************************************/
+    /* Shell decoding                                  */
+    /***************************************************/
+	for (let i = 0; i < iter; i++) {
+		if( sum_pulses[ i ] > 0 ) {
+        } else {
+        }
+    }
+    console.log('PTELL4', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 }
-*/

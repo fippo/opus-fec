@@ -66,6 +66,7 @@ function encodeFunction(encodedFrame, controller) {
   const dec = new EntDec(new Uint8Array(encodedFrame.data, 1), encodedFrame.data.byteLength - 1);
   const channel_state = [{
     indices: {},
+    frameLength: 320,
     nFramesPerPacket: 1,
     nb_subfr: 4, // assuming 20ms
     VAD_flags: []
@@ -93,10 +94,12 @@ function encodeFunction(encodedFrame, controller) {
   for (let i = 0; i < channel_state[0].nFramesPerPacket; i++) {
     for (let n = 0; n < 1; n++) {
       if (channel_state[n].LBRR_flags[i]) {
+        const pulses = new Uint16Array(MAX_FRAME_LENGTH);
         const tell = dec.ec_tell();
         // use EC_tell()
         silk_decode_indices(channel_state[n], dec, 1, true, false);
-        // silk_decode_pulses
+        silk_decode_pulses(dec, pulses, channel_state[n].indices.signalType,
+            channel_state[n].indices.quantOffsetType, channel_state[n].frameLength);
         // use EC_tell() again
         console.log('we have lbrr', dec.ec_tell(), tell);
       }
