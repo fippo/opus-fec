@@ -28,7 +28,12 @@ let headerrateSeries;
 let packetGraph;
 let packetSeries;
 
+let fecGraph;
+let fecSeries;
+let fecDiscardedSeries;
+
 let lastResult;
+let lastReceiverResult;
 
 const offerOptions = {
   offerToReceiveAudio: 1,
@@ -60,6 +65,11 @@ function gotStream(stream) {
   packetSeries = new TimelineDataSeries();
   packetGraph = new TimelineGraphView('packetGraph', 'packetCanvas');
   packetGraph.updateEndDate();
+
+  fecSeries = new TimelineDataSeries();
+  fecDiscardedSeries = new TimelineDataSeries();
+  fecGraph = new TimelineGraphView('fecGraph', 'fecCanvas');
+  fecGraph.updateEndDate();
 }
 
 function onCreateSessionDescriptionError(error) {
@@ -283,5 +293,27 @@ window.setInterval(() => {
       }
     });
     lastResult = res;
+  });
+
+  const receiver = pc2.getReceivers()[0];
+  receiver.getStats().then(res => {
+    res.forEach(report => {
+      if (report.type === 'inbound-rtp' && lastReceiverResult) { 
+        // FEC stuff. Missing on outbound-rtp.
+        if (report.isRemote) {
+          return;
+        }
+        const now = report.timestamp;
+        const received = report.fecPacketsReceived;
+        const discarded = report.fecPacketsReceived;
+
+        if (lastReceiverResult && lastReceiverResult.has(report.id)) {
+          fecSeries.addPoint(now, 1000 * (received - lastReceiverResult.get(report.id).fecPacketsReceived) / (now - lastReceiverResult.get(report.id).timestamp));
+          fecGraph.setDataSeries([fecSeries]);
+          fecGraph.updateEndDate();
+        }
+      }
+    });
+    lastReceiverResult = res;
   });
 }, 1000);
