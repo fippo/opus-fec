@@ -386,10 +386,16 @@ function opus_packet_get_mode(data) {
     return mode;
 }
 
+const silk_SMULBB = (a, b) => (a & 0xffff) * (b & 0xffff);
+const silk_RSHIFT = (a, shift) => a >>> shift;
 function silk_NLSF_unpack(ec_ix, pred_Q8, NLSF_CB, CB1_index) {
-    const fake = new Uint16Array([27, 45, 45, 36, 63, 45, 27, 27, 18, 27, 18, 18, 9, 0, 9, 0]);
-    for (let i = 0; i < fake.byteLength; i++) {
-        ec_ix[i] = fake[i];
+    let ec_sel_ptr = CB1_index * NLSF_CB.order / 2;
+    for (let i = 0; i < NLSF_CB.order; i += 2) {
+        const entry = NLSF_CB.ec_sel[ec_sel_ptr++];
+        ec_ix  [ i     ] = silk_SMULBB( silk_RSHIFT( entry, 1 ) & 7, 2 * NLSF_QUANT_MAX_AMPLITUDE + 1 );
+		pred_Q8[ i     ] = NLSF_CB.pred_Q8[ i + ( entry & 1 ) * ( NLSF_CB.order - 1 ) ];
+        ec_ix  [ i + 1 ] = silk_SMULBB( silk_RSHIFT( entry, 5 ) & 7, 2 * NLSF_QUANT_MAX_AMPLITUDE + 1 );
+        pred_Q8[ i + 1 ] = NLSF_CB.pred_Q8[ i + ( silk_RSHIFT( entry, 4 ) & 1 ) * ( NLSF_CB.order - 1 ) + 1 ];
     }
 }
 
@@ -426,7 +432,7 @@ function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCodin
     // silk_NLSF_unpack can not modify range decoder but we need the stuff it unpacks.
     const ec_ix = new Uint16Array(MAX_LPC_ORDER);
     const pred_Q8 = new Uint8Array(MAX_LPC_ORDER);
-    silk_NLSF_unpack(ec_ix, pred_Q8, {}, state.indices.NLSFIndices[0]);
+    silk_NLSF_unpack(ec_ix, pred_Q8, silk_NLSF_CB_WB, state.indices.NLSFIndices[0]);
     console.log('ITELL6', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 
     const order = 16;
