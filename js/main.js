@@ -59,6 +59,11 @@ const MODE = {
     HYBRID: 1001,
     SILK: 1000,
 };
+const SIGNAL_TYPES = {
+    NO_VOICE_ACTIVITY: 0,
+    UNVOICED: 1,
+    VOICED: 2,
+};
 
 const EC_SYM_BITS = 8;
 const EC_CODE_BITS = 32;
@@ -101,6 +106,7 @@ const silk_rate_levels_iCDF = [
          0])
 ];
 const silk_type_offset_VAD_iCDF = new Uint8Array([ 232,    158,    10,      0]);
+const silk_type_offset_no_VAD_iCDF = new Uint8Array([ 230,      0]);
 const silk_gain_iCDF = [
     new Uint8Array([224,    112,     44,     15,      3,      2,      1,      0]),
     new Uint8Array([254,    237,    192,    132,     70,     23,      4,      0]),
@@ -114,7 +120,6 @@ const silk_delta_gain_iCDF = new Uint8Array([
     16,     15,     14,     13,     12,     11,     10,      9,
     8,      7,      6,      5,      4,      3,      2,      1,
     0 ]);
-const silk_uniform8_iCDF = new Uint8Array([ 224, 192, 160, 128, 96, 64, 32, 0 ]);
 
 const silk_NLSF_CB1_WB_Q8 = new Uint8Array([
          7,     23,     38,     54,     69,     85,    100,    116,
@@ -266,6 +271,7 @@ const silk_NLSF_DELTA_MIN_WB_Q15 = new Uint16Array([
        347
 ]);
 
+// TODO: not an array, should be object. Just initialized like that in C...
 const silk_NLSF_CB_WB = [
     32,
     16,
@@ -280,6 +286,14 @@ const silk_NLSF_CB_WB = [
     silk_NLSF_DELTA_MIN_WB_Q15,
 ];
 
+const silk_NLSF_EXT_iCDF = new Uint8Array([ 100, 40, 16, 7, 3, 1, 0]);
+const silk_NLSF_interpolation_factor_iCDF = new Uint8Array([ 243, 221, 192, 181, 0 ]);
+
+const silk_uniform3_iCDF = new Uint8Array([ 171, 85, 0 ]);
+const silk_uniform4_iCDF = new Uint8Array([ 192, 128, 64, 0 ]);
+const silk_uniform5_iCDF = new Uint8Array([ 205, 154, 102, 51, 0 ]);
+const silk_uniform6_iCDF = new Uint8Array([ 213, 171, 128, 85, 43, 0 ]);
+const silk_uniform8_iCDF = new Uint8Array([ 224, 192, 160, 128, 96, 64, 32, 0 ]);
 
 class EntDec {
     constructor(buf, storage) { // ec_dec_init
@@ -336,7 +350,6 @@ class EntDec {
     }
 
     ec_dec_icdf(icdf, ftb) {
-        console.log('DEC ICDF', icdf);
         let r;
         let d;
         let s;
@@ -349,6 +362,7 @@ class EntDec {
         do {
           t = s;
           s = Math.imul(r, icdf[++ret]);
+          //console.log('ICDF', icdf[ret], ret);
         } while (d < s);
         this.val = d - s;
         this.rng = t - s;
@@ -374,13 +388,23 @@ function opus_packet_get_mode(data) {
 }
 
 function silk_NLSF_unpack(ec_ix, pred_Q8, NLSF_CB, CB1_index) {
+    const fake = new Uint16Array([27, 45, 45, 36, 63, 45, 27, 27, 18, 27, 18, 18, 9, 0, 9, 0]);
+    for (let i = 0; i < fake.byteLength; i++) {
+        ec_ix[i] = fake[i];
+    }
 }
 
 const MAX_LPC_ORDER = 16;
+const NLSF_QUANT_MAX_AMPLITUDE = 4;
+const MAX_NB_SUBFR = 4;
 function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCoding) {
-	const signalType = 1; // psDec->indices.signalType
     console.log('ITELL1', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
-    let Ix = rangeDec.ec_dec_icdf(silk_type_offset_VAD_iCDF, 8);
+    let Ix;
+    if (decode_LBRR || state.VAD_flags[frameIndex]) {
+      Ix = rangeDec.ec_dec_icdf(silk_type_offset_VAD_iCDF, 8) + 2;
+    } else {
+      Ix = rangeDec.ec_dec_icdf(silk_type_offset_no_VAD_iCDF, 8) + 2;
+    }
     state.indices.signalType = Ix >> 1;
     state.indices.quantOffsetType = Ix & 1;
     console.log('INDICES', state.indices);
@@ -388,7 +412,7 @@ function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCodin
     if (condCoding) {
         console.log('condcoding, dunno');
     } else {
-        rangeDec.ec_dec_icdf(silk_gain_iCDF[ signalType ], 8 );
+        rangeDec.ec_dec_icdf(silk_gain_iCDF[ state.indices.signalType ], 8 );
         rangeDec.ec_dec_icdf(silk_uniform8_iCDF, 8 );
     }
     console.log('ITELL3', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
@@ -398,13 +422,38 @@ function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCodin
     console.log('ITELL4', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
     // TODO: support more than WB
     //rangeDec.ec_dec_icdf(psDec->psNLSF_CB->CB1_iCDF[ ( psDec->indices.signalType >> 1 ) * psDec->psNLSF_CB->nVectors ], 8);
-    state.indices.NLSFIncides = [ rangeDec.ec_dec_icdf(silk_NLSF_CB1_iCDF_WB, 8) ];
+    state.indices.NLSFIndices = [ rangeDec.ec_dec_icdf(silk_NLSF_CB1_iCDF_WB, 8) ];
     console.log('ITELL5', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 
     // silk_NLSF_unpack can not modify range decoder but we need the stuff it unpacks.
     const ec_ix = new Uint16Array(MAX_LPC_ORDER);
     const pred_Q8 = new Uint8Array(MAX_LPC_ORDER);
-    //silk_NLSF_unpack(ec_ix, pred_Q8, {}, 
+    silk_NLSF_unpack(ec_ix, pred_Q8, {}, state.indices.NLSFIndices[0]);
+    console.log('ITELL6', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+
+    const order = 16;
+    for (let i = 0; i < order; i++) {
+        // Ix = ec_dec_icdf( psRangeDec, &psDec->psNLSF_CB->ec_iCDF[ ec_ix[ i ] ], 8 );
+        Ix = rangeDec.ec_dec_icdf(silk_NLSF_CB2_iCDF_WB.slice(ec_ix[i]), 8);
+        if (Ix === 0) {
+            Ix -= rangeDec.ec_dec_icdf(silk_NLSF_EXT_iCDF, 8 );
+        } else if (Ix === 2 * NLSF_QUANT_MAX_AMPLITUDE) {
+            Ix += rangeDec.ec_dec_icdf(silk_NLSF_EXT_iCDF, 8 );
+        }
+        state.indices.NLSFIndices[i + 1] = Ix - NLSF_QUANT_MAX_AMPLITUDE;
+    }
+    console.log('ITELL7', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+
+    if (state.nb_subfr === MAX_NB_SUBFR) {
+        state.indices.NLSFInterpCoef_Q2 = rangeDec.ec_dec_icdf(silk_NLSF_interpolation_factor_iCDF, 8) & 0xff;
+    } else {
+        state.indices.NLSFInterpCoef_Q2 = 4;
+    }
+
+    console.log('ITELL8', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+    // TODO: if signalType === TYPE_VOICED
+    state.indices.Seed = rangeDec.ec_dec_icdf(silk_uniform4_iCDF, 8);
+    console.log('ITELL9', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 }
 /*
 function silk_decode_pulses(rangeDec, signalType) {
