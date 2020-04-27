@@ -271,20 +271,19 @@ const silk_NLSF_DELTA_MIN_WB_Q15 = new Uint16Array([
        347
 ]);
 
-// TODO: not an array, should be object. Just initialized like that in C...
-const silk_NLSF_CB_WB = [
-    32,
-    16,
-    9830, // SILK_FIX_CONST( 0.15, 16 ),
-    427, // SILK_FIX_CONST( 1.0 / 0.15, 6 ),
-    silk_NLSF_CB1_WB_Q8,
-    silk_NLSF_CB1_iCDF_WB,
-    silk_NLSF_PRED_WB_Q8,
-    silk_NLSF_CB2_SELECT_WB,
-    silk_NLSF_CB2_iCDF_WB,
-    silk_NLSF_CB2_BITS_WB_Q5,
-    silk_NLSF_DELTA_MIN_WB_Q15,
-];
+const silk_NLSF_CB_WB = { // Wideband codebook.
+    nVectors: 32,
+    order: 16,
+    quantStepSize_Q16: 9830, // SILK_FIX_CONST( 0.15, 16 ),
+    invQuantStepSize_Q6: 427, // SILK_FIX_CONST( 1.0 / 0.15, 6 ),
+    CB1_NLSF_Q8: silk_NLSF_CB1_WB_Q8,
+    CB1_iCDF: silk_NLSF_CB1_iCDF_WB,
+    pred_Q8: silk_NLSF_PRED_WB_Q8,
+    ec_sel: silk_NLSF_CB2_SELECT_WB,
+    ec_iCDF: silk_NLSF_CB2_iCDF_WB,
+    ec_Rates_Q5: silk_NLSF_CB2_BITS_WB_Q5,
+    deltaMin_Q15: silk_NLSF_DELTA_MIN_WB_Q15,
+};
 
 const silk_NLSF_EXT_iCDF = new Uint8Array([ 100, 40, 16, 7, 3, 1, 0]);
 const silk_NLSF_interpolation_factor_iCDF = new Uint8Array([ 243, 221, 192, 181, 0 ]);
@@ -421,8 +420,7 @@ function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCodin
     }
     console.log('ITELL4', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
     // TODO: support more than WB
-    //rangeDec.ec_dec_icdf(psDec->psNLSF_CB->CB1_iCDF[ ( psDec->indices.signalType >> 1 ) * psDec->psNLSF_CB->nVectors ], 8);
-    state.indices.NLSFIndices = [ rangeDec.ec_dec_icdf(silk_NLSF_CB1_iCDF_WB, 8) ];
+    state.indices.NLSFIndices = [ rangeDec.ec_dec_icdf(silk_NLSF_CB_WB.CB1_iCDF.slice((state.indices.signalType >> 1) * silk_NLSF_CB_WB.nVectors), 8) ];
     console.log('ITELL5', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 
     // silk_NLSF_unpack can not modify range decoder but we need the stuff it unpacks.
@@ -434,7 +432,7 @@ function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCodin
     const order = 16;
     for (let i = 0; i < order; i++) {
         // Ix = ec_dec_icdf( psRangeDec, &psDec->psNLSF_CB->ec_iCDF[ ec_ix[ i ] ], 8 );
-        Ix = rangeDec.ec_dec_icdf(silk_NLSF_CB2_iCDF_WB.slice(ec_ix[i]), 8);
+        Ix = rangeDec.ec_dec_icdf(silk_NLSF_CB_WB.ec_iCDF.slice(ec_ix[i]), 8);
         if (Ix === 0) {
             Ix -= rangeDec.ec_dec_icdf(silk_NLSF_EXT_iCDF, 8 );
         } else if (Ix === 2 * NLSF_QUANT_MAX_AMPLITUDE) {
