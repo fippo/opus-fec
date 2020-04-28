@@ -20,7 +20,7 @@
 
     <base target="_blank">
 
-    <title>Peer connection: audio only</title>
+    <title>opus fec</title>
 
     <link rel="icon" sizes="192x192" href="../../../images/webrtc-icon-192x192.png">
     <link href="//fonts.googleapis.com/css?family=Roboto:300,400,500,700" rel="stylesheet" type="text/css">
@@ -49,15 +49,6 @@
     </div>
 
     <div id="buttons">
-        <select id="codec">
-            <!-- Codec values are matched with how they appear in the SDP.
-            For instance, opus matches opus/48000/2 in Chrome, and ISAC/16000
-            matches 16K iSAC (but not 32K iSAC). -->
-            <option value="opus">Opus</option>
-            <option value="ISAC">iSAC 16K</option>
-            <option value="G722">G722</option>
-            <option value="PCMU">PCMU</option>
-        </select>
         <button id="callButton">Call</button>
         <button id="hangupButton">Hang Up</button>
     </div>
@@ -82,27 +73,8 @@
         <canvas id="lbrrPercentageCanvas"></canvas>
     </div>
 
-    <a href="https://github.com/webrtc/samples/tree/gh-pages/src/content/peerconnection/audio"
-       title="View source for this page on GitHub" id="viewSource">View source on GitHub</a>
+    <div>test with google-chrome-unstable --force-fieldtrials=WebRTCFakeNetworkReceiveLossPercent/20 for 20% loss</div>
 </div>
-<table>
-    <caption>Bitrate and Packes sent per second - approximate results in browsers</caption>
-    <tr>
-        <th>Opus</th>
-        <th>iSAC 16K</th>
-        <th>G722</th>
-        <th>PCMU</th>
-        <th>Browsers Tested</th>
-    </tr>
-    <tr>
-        <td>~40 kbps / Muted : Same, ~50 Packets, Muted : Same or slight drop</td>
-        <td>~30 kbps / Muted : Same, ~33 Packets, Muted : Same or slight drop</td>
-        <td>~70 kbps / Muted : Same, ~50 Packets, Muted : Same</td>
-        <td>~70 kbps / Muted : Same, ~55 Packets, Muted : Same</td>
-        <td>Tested in Chrome, Not tested in Opera, Firefox, Safari, Edge</td>
-    </tr>
-</table>
-<hr>
 <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
 <script src="js/opus.js"></script>
 <script src="js/main.js"></script>
