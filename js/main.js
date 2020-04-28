@@ -153,6 +153,8 @@ function encodeFunction(encodedFrame, controller) {
       }
     }
   }
+  // TODO: continue here
+  /* Get MS predictor index */
 }
 
 function setupSenderTransform(sender) {
