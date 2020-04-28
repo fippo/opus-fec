@@ -501,7 +501,12 @@ const silk_LTP_vq_sizes = new Uint8Array([
 ]);
 
 /* tables_other.c */
+/* Table for LSB coding */
+const silk_lsb_iCDF = new Uint8Array([ 120, 0 ]);
+
+/* Tables for LTPScale */
 const silk_LTPscale_iCDF = new Uint8Array([ 128, 64, 0 ]);
+
 
 /* tables_pulses_per_block.c */
 const silk_shell_code_table0 = new Uint8Array([
@@ -947,7 +952,7 @@ function silk_decode_pulses(rangeDec, pulses, signalType, quantOffsetType, frame
                 let abs_q = pulses_ptr[ k ];
                 for( j = 0; j < nLS; j++ ) {
                     abs_q = silk_LSHIFT( abs_q, 1 );
-                    abs_q += ec_dec_icdf( psRangeDec, silk_lsb_iCDF, 8 );
+                    abs_q += rangeDec.ec_dec_icdf(silk_lsb_iCDF, 8 );
                 }
                 pulses_ptr[ k ] = abs_q;
             }
