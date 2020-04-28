@@ -972,7 +972,7 @@ function silk_decode_pulses(rangeDec, pulses, signalType, quantOffsetType, frame
     for( i = 0; i < iter; i++ ) {
         if( nLshifts[ i ] > 0 ) {
             const nLS = nLshifts[ i ];
-            pulses_ptr = pulses.subarray(silk_SMULBB( i, SHELL_CODEC_FRAME_LENGTH ));
+            const pulses_ptr = pulses.subarray(silk_SMULBB( i, SHELL_CODEC_FRAME_LENGTH ));
             for( k = 0; k < SHELL_CODEC_FRAME_LENGTH; k++ ) {
                 let abs_q = pulses_ptr[ k ];
                 for( j = 0; j < nLS; j++ ) {
