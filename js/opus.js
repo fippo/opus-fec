@@ -13,7 +13,13 @@ const CODE_INDEPENDENTLY = 0;
 const CODE_INDEPENDENTLY_NO_LTP_SCALING = 1;
 const CODE_CONDITIONALLY = 2;
 
-// define.h
+/* control.h */
+/* Decoder API flags */
+const FLAG_DECODE_NORMAL = 0;
+const FLAG_PACKET_LOST = 1;
+const FLAG_DECODE_LBRR = 2;
+
+/* define.h */
 const MAX_FRAMES_PER_PACKET = 3;
 
 const MAX_LPC_ORDER = 16;
@@ -702,6 +708,25 @@ function opus_packet_get_mode(data) {
         mode = MODE.SILK;
     }
     return mode;
+}
+
+function silk_init_encoder() {
+  return {
+    indices: {
+      GainsIndices: new Uint8Array(MAX_NB_SUBFR),
+      LTPIndex: new Uint8Array(MAX_NB_SUBFR),
+    },
+    frameLength: 320,
+    ec_prevLagIndex: 0,
+    ec_prevSignalType: 0,
+    fs_kHz: 48,
+    nFramesDecoded: 0,
+    nFramesPerPacket: 1,
+    nb_subfr: 4, // assuming 20ms
+    pitch_lag_low_bits_iCDF: silk_uniform8_iCDF,
+    pitch_contour_iCDF: silk_pitch_contour_iCDF, // assuming 20ms?
+    VAD_flags: []
+  };
 }
 
 /* shell_coder.c */

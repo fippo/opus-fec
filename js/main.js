@@ -51,6 +51,7 @@ const offerOptions = {
 };
 
 // encodeFunction({data: testPacket.buffer}, {enqueue: (s) => console.log(s) });
+// has 171 lbrr bits, end state is 174 201 54925537 76738212
 const testPacket = new Uint8Array([0x78, 0xc4, 0xb4, 0x38,
 0x19, 0x3d, 0xa1, 0x5e, 0xa5, 0x1e, 0x57, 0x9e,
 0x42, 0xdd, 0xd4, 0x18, 0x48, 0xff, 0x65, 0x58,
@@ -64,23 +65,8 @@ const testPacket = new Uint8Array([0x78, 0xc4, 0xb4, 0x38,
 0xa8, 0x6d, 0x27, 0x3d, 0xd6, 0x3b, 0x64]);
 
 // Opus decoder state.
-const channel_state = [{
-  indices: {
-    GainsIndices: new Uint8Array(MAX_NB_SUBFR),
-    LTPIndex: new Uint8Array(MAX_NB_SUBFR),
-  },
-  frameLength: 320,
-  ec_prevLagIndex: 0,
-  ec_prevSignalType: 0,
-  fs_kHz: 48,
-  nFramesDecoded: 0,
-  nFramesPerPacket: 1,
-  nb_subfr: 4, // assuming 20ms
-  pitch_lag_low_bits_iCDF: silk_uniform8_iCDF,
-  pitch_contour_iCDF: silk_pitch_contour_iCDF, // assuming 20ms?
-  VAD_flags: []
-}];
-
+const channel_state = [silk_init_encoder()];
+let nChannelsInternal = 1;
 // roughly this follows opus_decode_frame
 function encodeFunction(encodedFrame, controller) {
   controller.enqueue(encodedFrame); // no modifications, for now.
@@ -93,41 +79,77 @@ function encodeFunction(encodedFrame, controller) {
   // We know that we are in silk mode now.
   // Follow what silk_Decode does
   const rangeDec = new EntDec(new Uint8Array(encodedFrame.data, 1), encodedFrame.data.byteLength - 1);
-  for (let n = 0; n < 1; n++) {
-    for (let i = 0; i < channel_state[n].nFramesPerPacket; i++) {
-      channel_state[n].VAD_flags[i] = rangeDec.ec_dec_bit_logp(1);
+  const newPacketFlag = true;
+  const lostFlag = FLAG_DECODE_NORMAL
+
+  /**********************************/
+  /* Test if first frame in payload */
+  /**********************************/
+  if (newPacketFlag) {
+    for (let n = 0; n < nChannelsInternal; n++) {
+      channel_state[n].nFramesDecoded = 0;
     }
-    channel_state[n].LBRR_flag = rangeDec.ec_dec_bit_logp(1);
   }
-  for (let n = 0; n < 1; n++) {
-    channel_state[n].LBRR_flags = new Array(MAX_FRAMES_PER_PACKET);
-    if (channel_state[n].LBRR_flag) {
-      if (channel_state[n].nFramesPerPacket === 1) {
-        channel_state[n].LBRR_flags[0] = 1;
-      } else {
-        LBRR_symbol = rangeDec.ec_dec_icdf(silk_LBRR_flags_iCDF_ptr[channel_state[n].nFramesPerPacket - 2 ], 8 ) + 1;
-        for( i = 0; i < channel_state[ n ].nFramesPerPacket; i++ ) {
-          channel_state[ n ].LBRR_flags[ i ] = silk_RSHIFT( LBRR_symbol, i ) & 1; // TODO
+
+  /* If Mono -> Stereo transition in bitstream: init state of second channel */
+  // TODO
+
+  // We fast-forward to this (which is always true here)
+  // if( lostFlag != FLAG_PACKET_LOST && channel_state[ 0 ].nFramesDecoded == 0 ) {
+  if (lostFlag !== FLAG_PACKET_LOST && channel_state[0].nFramesDecoded === 0) {
+    /* First decoder call for this payload */
+    /* Decode VAD flags and LBRR flag */
+    for (let n = 0; n < nChannelsInternal; n++) {
+      for (let i = 0; i < channel_state[n].nFramesPerPacket; i++) {
+        channel_state[n].VAD_flags[i] = rangeDec.ec_dec_bit_logp(1);
+      }
+      channel_state[n].LBRR_flag = rangeDec.ec_dec_bit_logp(1);
+    }
+    /* Decode LBRR flags */
+    for (let n = 0; n < nChannelsInternal; n++) {
+      channel_state[n].LBRR_flags = new Array(MAX_FRAMES_PER_PACKET);
+      if (channel_state[n].LBRR_flag) {
+        if (channel_state[n].nFramesPerPacket === 1) {
+          channel_state[n].LBRR_flags[0] = 1;
+        } else {
+          LBRR_symbol = rangeDec.ec_dec_icdf(silk_LBRR_flags_iCDF_ptr[channel_state[n].nFramesPerPacket - 2 ], 8 ) + 1;
+          for( i = 0; i < channel_state[ n ].nFramesPerPacket; i++ ) {
+            channel_state[ n ].LBRR_flags[ i ] = silk_RSHIFT( LBRR_symbol, i ) & 1; // TODO
+          }
         }
       }
     }
-  }
-  // if( lostFlag == FLAG_DECODE_NORMAL ) {
-  for (let i = 0; i < channel_state[0].nFramesPerPacket; i++) {
-    for (let n = 0; n < 1; n++) {
-      if (channel_state[n].LBRR_flags[i]) {
-        const pulses = new Uint16Array(MAX_FRAME_LENGTH);
-        const tell = rangeDec.ec_tell();
-        // use EC_tell()
-        silk_decode_indices(channel_state[n], rangeDec, 1, true, false);
-        silk_decode_pulses(rangeDec, pulses, channel_state[n].indices.signalType,
-            channel_state[n].indices.quantOffsetType, channel_state[n].frameLength);
-        // use EC_tell() again
-        const lbrr_bits = rangeDec.ec_tell() - tell;
-        total_lbrr_bits += lbrr_bits;
-        lbrr_packets_sent++;
-        lbrr_percentage += 100 * lbrr_bits / (8 * rangeDec.storage);
-        console.log('we have lbrr', rangeDec.ec_tell(), tell, 8 * rangeDec.storage, Math.floor(100 * lbrr_bits / (8 * rangeDec.storage)));
+
+    if (lostFlag === FLAG_DECODE_NORMAL) {
+      /* Regular decoding: skip all LBRR data */
+      for (let i = 0; i < channel_state[0].nFramesPerPacket; i++) {
+        for (let n = 0; n < nChannelsInternal; n++) {
+          if (channel_state[n].LBRR_flags[i]) {
+            const pulses = new Uint16Array(MAX_FRAME_LENGTH);
+            const tell = rangeDec.ec_tell();
+            // use EC_tell()
+            silk_decode_indices(channel_state[n], rangeDec, 1, true, false);
+            silk_decode_pulses(rangeDec, pulses, channel_state[n].indices.signalType,
+                channel_state[n].indices.quantOffsetType, channel_state[n].frameLength);
+            // use EC_tell() again
+            const lbrr_bits = rangeDec.ec_tell() - tell;
+            total_lbrr_bits += lbrr_bits;
+            lbrr_packets_sent++;
+            lbrr_percentage += 100 * lbrr_bits / (8 * rangeDec.storage);
+            console.log('we have lbrr', rangeDec.ec_tell(), tell, 8 * rangeDec.storage, Math.floor(100 * lbrr_bits / (8 * rangeDec.storage)));
+            /*
+            let s = "";
+            for (let fi = 0; fi < 10; fi++) {
+                for (let ji = 0; ji < MAX_FRAME_LENGTH / 10; ji++) {
+                    const val = ((pulses[fi * MAX_FRAME_LENGTH / 10 + ji]) & 0xff);
+                    s += "0x" + (val < 10 ? '0' : '') + val.toString(16) + ', ';
+                }
+                s += "\n";
+            }
+            console.log(s);
+            */
+          }
+        }
       }
     }
   }
