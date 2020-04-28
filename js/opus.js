@@ -9,7 +9,13 @@ const SIGNAL_TYPES = {
     VOICED: 2,
 };
 
+const CODE_INDEPENDENTLY = 0;
+const CODE_INDEPENDENTLY_NO_LTP_SCALING = 1;
+const CODE_CONDITIONALLY = 2;
+
 // define.h
+const MAX_FRAMES_PER_PACKET = 3;
+
 const MAX_LPC_ORDER = 16;
 const NLSF_QUANT_MAX_AMPLITUDE = 4;
 const MAX_NB_SUBFR = 4;
@@ -21,8 +27,9 @@ const MAX_FRAME_LENGTH = ( MAX_FRAME_LENGTH_MS * MAX_FS_KHZ );
 
 const SHELL_CODEC_FRAME_LENGTH = 16;
 const LOG2_SHELL_CODEC_FRAME_LENGTH = 4;
-const MAX_NB_SHELL_BLOCKS = ( MAX_FRAME_LENGTH / SHELL_CODEC_FRAME_LENGTH )
-const SILK_MAX_PULSES = 16
+const MAX_NB_SHELL_BLOCKS = ( MAX_FRAME_LENGTH / SHELL_CODEC_FRAME_LENGTH );
+const N_RATE_LEVELS = 10;
+const SILK_MAX_PULSES = 16;
 
 
 const EC_SYM_BITS = 8;
@@ -307,6 +314,291 @@ const silk_uniform5_iCDF = new Uint8Array([ 205, 154, 102, 51, 0 ]);
 const silk_uniform6_iCDF = new Uint8Array([ 213, 171, 128, 85, 43, 0 ]);
 const silk_uniform8_iCDF = new Uint8Array([ 224, 192, 160, 128, 96, 64, 32, 0 ]);
 
+/* tables_pitch_lag.c */
+const silk_pitch_lag_iCDF = new Uint8Array([
+       253,    250,    244,    233,    212,    182,    150,    131,
+       120,    110,     98,     85,     72,     60,     49,     40,
+        32,     25,     19,     15,     13,     11,      9,      8,
+         7,      6,      5,      4,      3,      2,      1,      0
+]);
+
+const silk_pitch_delta_iCDF = new Uint8Array([
+       210,    208,    206,    203,    199,    193,    183,    168,
+       142,    104,     74,     52,     37,     27,     20,     14,
+        10,      6,      4,      2,      0
+]);
+
+const silk_pitch_contour_iCDF = new Uint8Array([
+       223,    201,    183,    167,    152,    138,    124,    111,
+        98,     88,     79,     70,     62,     56,     50,     44,
+        39,     35,     31,     27,     24,     21,     18,     16,
+        14,     12,     10,      8,      6,      4,      3,      2,
+         1,      0
+]);
+
+const silk_pitch_contour_NB_iCDF = new Uint8Array([
+       188,    176,    155,    138,    119,     97,     67,     43,
+        26,     10,      0
+]);
+
+const silk_pitch_contour_10_ms_iCDF = new Uint8Array([
+       165,    119,     80,     61,     47,     35,     27,     20,
+        14,      9,      4,      0
+]);
+
+const silk_pitch_contour_10_ms_NB_iCDF = new Uint8Array([
+       113,     63,      0
+]);
+
+/* tables_LTP.c */
+const silk_LTP_per_index_iCDF = new Uint8Array([
+       179,     99,      0
+]);
+
+const silk_LTP_gain_iCDF_0 = new Uint8Array([
+        71,     56,     43,     30,     21,     12,      6,      0
+]);
+
+const silk_LTP_gain_iCDF_1 = new Uint8Array([
+       199,    165,    144,    124,    109,     96,     84,     71,
+        61,     51,     42,     32,     23,     15,      8,      0
+]);
+
+const silk_LTP_gain_iCDF_2 = new Uint8Array([
+       241,    225,    211,    199,    187,    175,    164,    153,
+       142,    132,    123,    114,    105,     96,     88,     80,
+        72,     64,     57,     50,     44,     38,     33,     29,
+        24,     20,     16,     12,      9,      5,      2,      0
+]);
+
+const silk_LTP_gain_middle_avg_RD_Q14 = 12304;
+
+const silk_LTP_gain_BITS_Q5_0 = new Uint8Array([
+        15,    131,    138,    138,    155,    155,    173,    173
+]);
+
+const silk_LTP_gain_BITS_Q5_1 = new Uint8Array([
+        69,     93,    115,    118,    131,    138,    141,    138,
+       150,    150,    155,    150,    155,    160,    166,    160
+]);
+
+const silk_LTP_gain_BITS_Q5_2 = new Uint8Array([
+       131,    128,    134,    141,    141,    141,    145,    145,
+       145,    150,    155,    155,    155,    155,    160,    160,
+       160,    160,    166,    166,    173,    173,    182,    192,
+       182,    192,    192,    192,    205,    192,    205,    224
+]);
+
+const silk_LTP_gain_iCDF_ptrs = [
+    silk_LTP_gain_iCDF_0,
+    silk_LTP_gain_iCDF_1,
+    silk_LTP_gain_iCDF_2
+];
+
+const silk_LTP_gain_BITS_Q5_ptrs = [
+    silk_LTP_gain_BITS_Q5_0,
+    silk_LTP_gain_BITS_Q5_1,
+    silk_LTP_gain_BITS_Q5_2
+];
+
+const silk_LTP_gain_vq_0 = [
+    new Uint8Array([4,      6,     24,      7,      5]),
+    new Uint8Array([0,      0,      2,      0,      0]),
+    new Uint8Array([12,     28,     41,     13,     -4]),
+    new Uint8Array([-9,     15,     42,     25,     14]),
+    new Uint8Array([1,     -2,     62,     41,     -9]),
+    new Uint8Array([-10,     37,     65,     -4,      3]),
+    new Uint8Array([-6,      4,     66,      7,     -8]),
+    new Uint8Array([16,     14,     38,     -3,     33]),
+];
+
+const silk_LTP_gain_vq_1 = [
+    new Int8Array([13,     22,     39,     23,     12]),
+    new Int8Array([-1,     36,     64,     27,     -6]),
+    new Int8Array([-7,     10,     55,     43,     17]),
+    new Int8Array([1,      1,      8,      1,      1]),
+    new Int8Array([6,    -11,     74,     53,     -9]),
+    new Int8Array([-12,     55,     76,    -12,      8]),
+    new Int8Array([-3,      3,     93,     27,     -4]),
+    new Int8Array([26,     39,     59,      3,     -8]),
+    new Int8Array([2,      0,     77,     11,      9]),
+    new Int8Array([-8,     22,     44,     -6,      7]),
+    new Int8Array([40,      9,     26,      3,      9]),
+    new Int8Array([-7,     20,    101,     -7,      4]),
+    new Int8Array([3,     -8,     42,     26,      0]),
+    new Int8Array([-15,     33,     68,      2,     23]),
+    new Int8Array([-2,     55,     46,     -2,     15]),
+    new Int8Array([3,     -1,     21,     16,     41]),
+]
+
+const silk_LTP_gain_vq_2 = [
+	new Int8Array([-6,     27,     61,     39,      5]),
+	new Int8Array([-11,     42,     88,      4,      1]),
+    new Int8Array([-2,     60,     65,      6,     -4]),
+    new Int8Array([-1,     -5,     73,     56,      1]),
+    new Int8Array([-9,     19,     94,     29,     -9]),
+    new Int8Array([0,     12,     99,      6,      4]),
+    new Int8Array([8,    -19,    102,     46,    -13]),
+    new Int8Array([3,      2,     13,      3,      2]),
+    new Int8Array([9,    -21,     84,     72,    -18]),
+    new Int8Array([-11,     46,    104,    -22,      8]),
+    new Int8Array([18,     38,     48,     23,      0]),
+    new Int8Array([-16,     70,     83,    -21,     11]),
+    new Int8Array([5,    -11,    117,     22,     -8]),
+    new Int8Array([-6,     23,    117,    -12,      3]),
+    new Int8Array([3,     -8,     95,     28,      4]),
+    new Int8Array([-10,     15,     77,     60,    -15]),
+    new Int8Array([-1,      4,    124,      2,     -4]),
+    new Int8Array([3,     38,     84,     24,    -25]),
+    new Int8Array([2,     13,     42,     13,     31]),
+    new Int8Array([21,     -4,     56,     46,     -1]),
+    new Int8Array([-1,     35,     79,    -13,     19]),
+    new Int8Array([-7,     65,     88,     -9,    -14]),
+    new Int8Array([20,      4,     81,     49,    -29]),
+    new Int8Array([20,      0,     75,      3,    -17]),
+    new Int8Array([5,     -9,     44,     92,     -8]),
+    new Int8Array([1,     -3,     22,     69,     31]),
+    new Int8Array([-6,     95,     41,    -12,      5]),
+    new Int8Array([39,     67,     16,     -4,      1]),
+    new Int8Array([0,     -6,    120,     55,    -36]),
+    new Int8Array([-13,     44,    122,      4,    -24]),
+    new Int8Array([81,      5,     11,      3,      7]),
+    new Int8Array([2,      0,      9,     10,     88]),
+];
+
+const silk_LTP_vq_ptrs_Q7 = [
+    silk_LTP_gain_vq_0,
+    silk_LTP_gain_vq_1,
+    silk_LTP_gain_vq_2
+];
+
+/* Maximum frequency-dependent response of the pitch taps above,
+   computed as max(abs(freqz(taps))) */
+const silk_LTP_gain_vq_0_gain = new Uint8Array([
+      46,      2,     90,     87,     93,     91,     82,     98
+]);
+
+const silk_LTP_gain_vq_1_gain = new Uint8Array([
+     109,    120,    118,     12,    113,    115,    117,    119,
+      99,     59,     87,    111,     63,    111,    112,     80
+]);
+
+const silk_LTP_gain_vq_2_gain = new Uint8Array([
+     126,    124,    125,    124,    129,    121,    126,     23,
+     132,    127,    127,    127,    126,    127,    122,    133,
+     130,    134,    101,    118,    119,    145,    126,     86,
+     124,    120,    123,    119,    170,    173,    107,    109
+]);
+
+const silk_LTP_vq_gain_ptrs_Q7 = [
+    silk_LTP_gain_vq_0_gain,
+    silk_LTP_gain_vq_1_gain,
+    silk_LTP_gain_vq_2_gain
+];
+
+const silk_LTP_vq_sizes = new Uint8Array([
+    8, 16, 32
+]);
+
+/* tables_other.c */
+const silk_LTPscale_iCDF = new Uint8Array([ 128, 64, 0 ]);
+
+/* tables_pulses_per_block.c */
+const silk_shell_code_table0 = new Uint8Array([
+       128,      0,    214,     42,      0,    235,    128,     21,
+         0,    244,    184,     72,     11,      0,    248,    214,
+       128,     42,      7,      0,    248,    225,    170,     80,
+        25,      5,      0,    251,    236,    198,    126,     54,
+        18,      3,      0,    250,    238,    211,    159,     82,
+        35,     15,      5,      0,    250,    231,    203,    168,
+       128,     88,     53,     25,      6,      0,    252,    238,
+       216,    185,    148,    108,     71,     40,     18,      4,
+         0,    253,    243,    225,    199,    166,    128,     90,
+        57,     31,     13,      3,      0,    254,    246,    233,
+       212,    183,    147,    109,     73,     44,     23,     10,
+         2,      0,    255,    250,    240,    223,    198,    166,
+       128,     90,     58,     33,     16,      6,      1,      0,
+       255,    251,    244,    231,    210,    181,    146,    110,
+        75,     46,     25,     12,      5,      1,      0,    255,
+       253,    248,    238,    221,    196,    164,    128,     92,
+        60,     35,     18,      8,      3,      1,      0,    255,
+       253,    249,    242,    229,    208,    180,    146,    110,
+        76,     48,     27,     14,      7,      3,      1,      0
+]);
+
+const silk_shell_code_table1 = new Uint8Array([
+       129,      0,    207,     50,      0,    236,    129,     20,
+         0,    245,    185,     72,     10,      0,    249,    213,
+       129,     42,      6,      0,    250,    226,    169,     87,
+        27,      4,      0,    251,    233,    194,    130,     62,
+        20,      4,      0,    250,    236,    207,    160,     99,
+        47,     17,      3,      0,    255,    240,    217,    182,
+       131,     81,     41,     11,      1,      0,    255,    254,
+       233,    201,    159,    107,     61,     20,      2,      1,
+         0,    255,    249,    233,    206,    170,    128,     86,
+        50,     23,      7,      1,      0,    255,    250,    238,
+       217,    186,    148,    108,     70,     39,     18,      6,
+         1,      0,    255,    252,    243,    226,    200,    166,
+       128,     90,     56,     30,     13,      4,      1,      0,
+       255,    252,    245,    231,    209,    180,    146,    110,
+        76,     47,     25,     11,      4,      1,      0,    255,
+       253,    248,    237,    219,    194,    163,    128,     93,
+        62,     37,     19,      8,      3,      1,      0,    255,
+       254,    250,    241,    226,    205,    177,    145,    111,
+        79,     51,     30,     15,      6,      2,      1,      0
+]);
+
+const silk_shell_code_table2 = new Uint8Array([
+       129,      0,    203,     54,      0,    234,    129,     23,
+         0,    245,    184,     73,     10,      0,    250,    215,
+       129,     41,      5,      0,    252,    232,    173,     86,
+        24,      3,      0,    253,    240,    200,    129,     56,
+        15,      2,      0,    253,    244,    217,    164,     94,
+        38,     10,      1,      0,    253,    245,    226,    189,
+       132,     71,     27,      7,      1,      0,    253,    246,
+       231,    203,    159,    105,     56,     23,      6,      1,
+         0,    255,    248,    235,    213,    179,    133,     85,
+        47,     19,      5,      1,      0,    255,    254,    243,
+       221,    194,    159,    117,     70,     37,     12,      2,
+         1,      0,    255,    254,    248,    234,    208,    171,
+       128,     85,     48,     22,      8,      2,      1,      0,
+       255,    254,    250,    240,    220,    189,    149,    107,
+        67,     36,     16,      6,      2,      1,      0,    255,
+       254,    251,    243,    227,    201,    166,    128,     90,
+        55,     29,     13,      5,      2,      1,      0,    255,
+       254,    252,    246,    234,    213,    183,    147,    109,
+        73,     43,     22,     10,      4,      2,      1,      0
+]);
+
+const silk_shell_code_table3 = new Uint8Array([
+       130,      0,    200,     58,      0,    231,    130,     26,
+         0,    244,    184,     76,     12,      0,    249,    214,
+       130,     43,      6,      0,    252,    232,    173,     87,
+        24,      3,      0,    253,    241,    203,    131,     56,
+        14,      2,      0,    254,    246,    221,    167,     94,
+        35,      8,      1,      0,    254,    249,    232,    193,
+       130,     65,     23,      5,      1,      0,    255,    251,
+       239,    211,    162,     99,     45,     15,      4,      1,
+         0,    255,    251,    243,    223,    186,    131,     74,
+        33,     11,      3,      1,      0,    255,    252,    245,
+       230,    202,    158,    105,     57,     24,      8,      2,
+         1,      0,    255,    253,    247,    235,    214,    179,
+       132,     84,     44,     19,      7,      2,      1,      0,
+       255,    254,    250,    240,    223,    196,    159,    112,
+        69,     36,     15,      6,      2,      1,      0,    255,
+       254,    253,    245,    231,    209,    176,    136,     93,
+        55,     27,     11,      3,      2,      1,      0,    255,
+       254,    253,    252,    239,    221,    194,    158,    117,
+        76,     42,     18,      4,      3,      2,      1,      0
+]);
+
+const silk_shell_code_table_offsets = new Uint8Array([
+         0,      0,      2,      5,      9,     14,     20,     27,
+        35,     44,     54,     65,     77,     90,    104,    119,
+       135
+]);
+
+
 class EntDec {
     constructor(buf, storage) { // ec_dec_init
         this.buf = buf;
@@ -399,6 +691,50 @@ function opus_packet_get_mode(data) {
     return mode;
 }
 
+/* shell_coder.c */
+function silk_shell_decoder(pulses0, rangeDec, pulses4) {
+    const decode_split = (child1, child2, rangeDec, p, shell_table) => {
+        if (p > 0) {
+            const r = rangeDec.ec_dec_icdf(shell_table.slice(silk_shell_code_table_offsets[p]), 8);
+            child1[0] = r; 
+            child2[0] = p - child1[0];
+        } else {
+            child1[0] = 0;
+            child2[0] = 0;
+        }
+    };
+    const pulses3 = new Int16Array(2);
+    const pulses2 = new Int16Array(4);
+    const pulses1 = new Int16Array(8);
+
+    /* this function operates on one shell code frame of 16 pulses */
+    // silk_assert( SHELL_CODEC_FRAME_LENGTH == 16 );
+
+    //console.log('STELL1', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+    decode_split(pulses3.subarray(0), pulses3.subarray(1), rangeDec, pulses4, silk_shell_code_table3);
+
+    decode_split(pulses2.subarray(0), pulses2.subarray(1), rangeDec, pulses3[0], silk_shell_code_table2);
+
+    decode_split(pulses1.subarray(0), pulses1.subarray(1), rangeDec, pulses2[0], silk_shell_code_table1);
+    decode_split(pulses0.subarray(0), pulses0.subarray(1), rangeDec, pulses1[0], silk_shell_code_table0);
+    decode_split(pulses0.subarray(2), pulses0.subarray(3), rangeDec, pulses1[1], silk_shell_code_table0);
+
+    decode_split(pulses1.subarray(2), pulses1.subarray(3), rangeDec, pulses2[1], silk_shell_code_table1);
+    decode_split(pulses0.subarray(4), pulses0.subarray(5), rangeDec, pulses1[2], silk_shell_code_table0);
+    decode_split(pulses0.subarray(6), pulses0.subarray(7), rangeDec, pulses1[3], silk_shell_code_table0);
+
+    decode_split(pulses2.subarray(2), pulses2.subarray(3), rangeDec, pulses3[1], silk_shell_code_table2);
+
+    decode_split(pulses1.subarray(4), pulses1.subarray(5), rangeDec, pulses2[2], silk_shell_code_table1);
+    decode_split(pulses0.subarray(8), pulses0.subarray(9), rangeDec, pulses1[4], silk_shell_code_table0);
+    decode_split(pulses0.subarray(10), pulses0.subarray(11), rangeDec, pulses1[5], silk_shell_code_table0);
+
+    decode_split(pulses1.subarray(6), pulses1.subarray(7), rangeDec, pulses2[3], silk_shell_code_table1);
+    decode_split(pulses0.subarray(12), pulses0.subarray(13), rangeDec, pulses1[6], silk_shell_code_table0);
+    decode_split(pulses0.subarray(14), pulses0.subarray(15), rangeDec, pulses1[7], silk_shell_code_table0);
+    //console.log('STELL7', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+}
+
 const silk_SMULBB = (a, b) => (a & 0xffff) * (b & 0xffff);
 const silk_RSHIFT = (a, shift) => a >>> shift;
 function silk_NLSF_unpack(ec_ix, pred_Q8, NLSF_CB, CB1_index) {
@@ -423,11 +759,11 @@ function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCodin
     state.indices.signalType = Ix >> 1;
     state.indices.quantOffsetType = Ix & 1;
     //console.log('ITELL2', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
-    if (condCoding) {
-        console.log('condcoding, dunno');
+    if (condCoding === CODE_CONDITIONALLY) {
+        state.indices.GainsIndices[0] = rangeDec.ec_dec_icdf(silk_delta_gain_iCDF, 8 );
     } else {
-        rangeDec.ec_dec_icdf(silk_gain_iCDF[ state.indices.signalType ], 8 );
-        rangeDec.ec_dec_icdf(silk_uniform8_iCDF, 8 );
+        state.indices.GainsIndices[0] = rangeDec.ec_dec_icdf(silk_gain_iCDF[ state.indices.signalType ], 8 );
+        state.indices.GainsIndices[0] += rangeDec.ec_dec_icdf(silk_uniform8_iCDF, 8 );
     }
     //console.log('ITELL3', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
     for (let i = 1; i < state.nb_subfr; i++) {
@@ -444,8 +780,7 @@ function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCodin
     silk_NLSF_unpack(ec_ix, pred_Q8, silk_NLSF_CB_WB, state.indices.NLSFIndices[0]);
     //console.log('ITELL6', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 
-    const order = 16;
-    for (let i = 0; i < order; i++) {
+    for (let i = 0; i < silk_NLSF_CB_WB.order; i++) {
         // Ix = ec_dec_icdf( psRangeDec, &psDec->psNLSF_CB->ec_iCDF[ ec_ix[ i ] ], 8 );
         Ix = rangeDec.ec_dec_icdf(silk_NLSF_CB_WB.ec_iCDF.slice(ec_ix[i]), 8);
         if (Ix === 0) {
@@ -457,6 +792,7 @@ function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCodin
     }
     //console.log('ITELL7', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 
+    /* Decode LSF interpolation factor */
     if (state.nb_subfr === MAX_NB_SUBFR) {
         state.indices.NLSFInterpCoef_Q2 = rangeDec.ec_dec_icdf(silk_NLSF_interpolation_factor_iCDF, 8) & 0xff;
     } else {
@@ -464,18 +800,67 @@ function silk_decode_indices(state, rangeDec, frameIndex, decode_LBRR, condCodin
     }
 
     //console.log('ITELL8', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
-    // TODO: if signalType === TYPE_VOICED
+    if (state.indices.signalType === SIGNAL_TYPES.VOICED) {
+        /*********************/
+        /* Decode pitch lags */
+        /*********************/
+        /* Get lag index */
+        let decode_absolute_lagIndex = 1;
+        if (condCoding === CODE_CONDITIONALLY && state.ec_prevSignalType === SIGNAL_TYPES.VOICED) {
+            /* Decode Delta index */
+            let delta_lagIndex = rangeDec.ec_dec_icdf(silk_pitch_delta_iCDF, 8 );
+            if (delta_lagIndex > 0) {
+                delta_lagIndex = delta_lagIndex - 9;
+                state.indices.lagIndex = state.ec_prevLagIndex + delta_lagIndex;
+                decode_absolute_lagIndex = 0;
+            }
+        }
+        if (decode_absolute_lagIndex) {
+            /* Absolute decoding */
+            state.indices.lagIndex = rangeDec.ec_dec_icdf( silk_pitch_lag_iCDF, 8 ) * silk_RSHIFT( state.fs_kHz, 1 );
+            state.indices.lagIndex += rangeDec.ec_dec_icdf(state.pitch_lag_low_bits_iCDF, 8 );
+        }
+        state.ec_prevLagIndex = state.indices.lagIndex;
+
+        /* Get countour index */
+        state.indices.contourIndex = rangeDec.ec_dec_icdf(state.pitch_contour_iCDF, 8 );
+
+        /********************/
+        /* Decode LTP gains */
+        /********************/
+        /* Decode PERIndex value */
+        state.indices.PERIndex = rangeDec.ec_dec_icdf(silk_LTP_per_index_iCDF, 8 );
+
+        for(let k = 0; k < state.nb_subfr; k++ ) {
+            state.indices.LTPIndex[ k ] = rangeDec.ec_dec_icdf(silk_LTP_gain_iCDF_ptrs[ state.indices.PERIndex ], 8 );
+        }
+
+		/**********************/
+        /* Decode LTP scaling */
+        /**********************/
+        if(condCoding == CODE_INDEPENDENTLY ) {
+            state.indices.LTP_scaleIndex = rangeDec.ec_dec_icdf( silk_LTPscale_iCDF, 8 );
+        } else {
+            state.indices.LTP_scaleIndex = 0;
+        }
+    }
+
+	state.ec_prevSignalType = state.indices.signalType;
+
+	/***************/
+	/* Decode seed */
+	/***************/
     state.indices.Seed = rangeDec.ec_dec_icdf(silk_uniform4_iCDF, 8);
     //console.log('ITELL9', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 }
 
 function silk_decode_pulses(rangeDec, pulses, signalType, quantOffsetType, frame_length) {
-    console.log('PTELL1', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+    //console.log('PTELL1', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
     const sum_pulses = new Int32Array(MAX_NB_SHELL_BLOCKS);
     const nLshifts = new Int32Array(MAX_NB_SHELL_BLOCKS);
 
     const RateLevelIndex = rangeDec.ec_dec_icdf(silk_rate_levels_iCDF[ signalType >> 1 ], 8 );
-    console.log('PTELL2', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+    //console.log('PTELL2', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 
     let iter = silk_RSHIFT( frame_length, LOG2_SHELL_CODEC_FRAME_LENGTH );
 	if( iter * SHELL_CODEC_FRAME_LENGTH < frame_length ) {
@@ -504,6 +889,7 @@ function silk_decode_pulses(rangeDec, pulses, signalType, quantOffsetType, frame
     /***************************************************/
 	for (let i = 0; i < iter; i++) {
 		if( sum_pulses[ i ] > 0 ) {
+            silk_shell_decoder(pulses.slice(silk_SMULBB( i, SHELL_CODEC_FRAME_LENGTH )), rangeDec, sum_pulses[ i ] );
         } else {
         }
     }
