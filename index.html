@@ -61,10 +61,6 @@
         <button id="callButton">Call</button>
         <button id="hangupButton">Hang Up</button>
     </div>
-    <div class="graph-container" id="bitrateGraph">
-        <div>Bitrate</div>
-        <canvas id="bitrateCanvas"></canvas>
-    </div>
     <div class="graph-container" id="packetGraph">
         <div>Packets sent per second</div>
         <canvas id="packetCanvas"></canvas>
@@ -73,9 +69,17 @@
         <div>FEC packets received per second</div>
         <canvas id="fecCanvas"></canvas>
     </div>
+    <div class="graph-container" id="bitrateGraph">
+        <div>Bitrate</div>
+        <canvas id="bitrateCanvas"></canvas>
+    </div>
     <div class="graph-container" id="lbrrGraph">
         <div>LBRR bits sent per second</div>
         <canvas id="lbrrCanvas"></canvas>
+    </div>
+    <div class="graph-container" id="lbrrPercentageGraph">
+        <div>LBRR size in % of packets</div>
+        <canvas id="lbrrPercentageCanvas"></canvas>
     </div>
 
     <a href="https://github.com/webrtc/samples/tree/gh-pages/src/content/peerconnection/audio"

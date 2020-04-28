@@ -36,9 +36,14 @@ let lastResult;
 let lastReceiverResult;
 
 let total_lbrr_bits = 0;
-let last_lbrr_bits;
+let lbrr_packets_sent = 0;
+let lbrr_percentage = 0;
+let last_lbrr;
 let lbrrGraph;
 let lbrrSeries;
+
+let lbrrPercentageGraph;
+let lbrrPercentageSeries;
 
 const offerOptions = {
   offerToReceiveAudio: 1,
@@ -76,12 +81,15 @@ const channel_state = [{
   pitch_contour_iCDF: silk_pitch_contour_iCDF, // assuming 20ms?
   VAD_flags: []
 }];
+
 // roughly this follows opus_decode_frame
 function encodeFunction(encodedFrame, controller) {
+  controller.enqueue(encodedFrame); // no modifications, for now.
   const view = new DataView(encodedFrame.data);
   const data = new Uint8Array(encodedFrame.data);
+
   if (encodedFrame.data.byteLength < 1 || opus_packet_get_mode(data) === MODE.CELT) {
-    return controller.enqueue(encodedFrame);
+    return;
   }
   // We know that we are in silk mode now.
   // Follow what silk_Decode does
@@ -118,11 +126,12 @@ function encodeFunction(encodedFrame, controller) {
         // use EC_tell() again
         const lbrr_bits = rangeDec.ec_tell() - tell;
         total_lbrr_bits += lbrr_bits;
-        console.log('we have lbrr', rangeDec.ec_tell(), tell);
+        lbrr_packets_sent++;
+        lbrr_percentage += 100 * lbrr_bits / (8 * rangeDec.storage);
+        console.log('we have lbrr', rangeDec.ec_tell(), tell, 8 * rangeDec.storage, Math.floor(100 * lbrr_bits / (8 * rangeDec.storage)));
       }
     }
   }
-  controller.enqueue(encodedFrame);
 }
 
 function setupSenderTransform(sender) {
@@ -169,6 +178,10 @@ function gotStream(stream) {
   lbrrSeries = new TimelineDataSeries();
   lbrrGraph = new TimelineGraphView('lbrrGraph', 'lbrrCanvas');
   lbrrGraph.updateEndDate();
+
+  lbrrPercentageSeries = new TimelineDataSeries();
+  lbrrPercentageGraph = new TimelineGraphView('lbrrPercentageGraph', 'lbrrPercentageCanvas');
+  lbrrPercentageGraph.updateEndDate();
 }
 
 function onCreateSessionDescriptionError(error) {
@@ -391,6 +404,19 @@ window.setInterval(() => {
           packetGraph.setDataSeries([packetSeries]);
           packetGraph.updateEndDate();
         }
+        if (last_lbrr) {
+          const [then, bits, packets] = last_lbrr;
+          lbrrSeries.addPoint(now, 1000 * (total_lbrr_bits - bits) / (now - then));
+          lbrrGraph.setDataSeries([lbrrSeries]);
+          lbrrGraph.updateEndDate();
+
+
+          lbrrPercentageSeries.addPoint(now, lbrr_percentage / (lbrr_packets_sent - packets));
+          lbrrPercentageGraph.setDataSeries([lbrrPercentageSeries]);
+          lbrrPercentageGraph.updateEndDate();
+        }
+        last_lbrr= [now, total_lbrr_bits, lbrr_packets_sent];
+        lbrr_percentage = 0;
       }
     });
     lastResult = res;
@@ -417,12 +443,4 @@ window.setInterval(() => {
     });
     lastReceiverResult = res;
   });
-
-  if (last_lbrr_bits) {
-    const [then, past_lbrr_bits] = last_lbrr_bits;
-    lbrrSeries.addPoint(Date.now(), 1000 * (total_lbrr_bits - past_lbrr_bits) / (Date.now() - then));
-    lbrrGraph.setDataSeries([lbrrSeries]);
-    lbrrGraph.updateEndDate();
-  }
-  last_lbrr_bits = [Date.now(), total_lbrr_bits];
 }, 1000);
