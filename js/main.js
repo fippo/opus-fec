@@ -35,6 +35,11 @@ let fecDiscardedSeries;
 let lastResult;
 let lastReceiverResult;
 
+let total_lbrr_bits = 0;
+let last_lbrr_bits;
+let lbrrGraph;
+let lbrrSeries;
+
 const offerOptions = {
   offerToReceiveAudio: 1,
   offerToReceiveVideo: 0,
@@ -111,6 +116,8 @@ function encodeFunction(encodedFrame, controller) {
         silk_decode_pulses(rangeDec, pulses, channel_state[n].indices.signalType,
             channel_state[n].indices.quantOffsetType, channel_state[n].frameLength);
         // use EC_tell() again
+        const lbrr_bits = rangeDec.ec_tell() - tell;
+        total_lbrr_bits += lbrr_bits;
         console.log('we have lbrr', rangeDec.ec_tell(), tell);
       }
     }
@@ -158,6 +165,10 @@ function gotStream(stream) {
   fecDiscardedSeries = new TimelineDataSeries();
   fecGraph = new TimelineGraphView('fecGraph', 'fecCanvas');
   fecGraph.updateEndDate();
+
+  lbrrSeries = new TimelineDataSeries();
+  lbrrGraph = new TimelineGraphView('lbrrGraph', 'lbrrCanvas');
+  lbrrGraph.updateEndDate();
 }
 
 function onCreateSessionDescriptionError(error) {
@@ -406,4 +417,12 @@ window.setInterval(() => {
     });
     lastReceiverResult = res;
   });
+
+  if (last_lbrr_bits) {
+    const [then, past_lbrr_bits] = last_lbrr_bits;
+    lbrrSeries.addPoint(Date.now(), 1000 * (total_lbrr_bits - past_lbrr_bits) / (Date.now() - then));
+    lbrrGraph.setDataSeries([lbrrSeries]);
+    lbrrGraph.updateEndDate();
+  }
+  last_lbrr_bits = [Date.now(), total_lbrr_bits];
 }, 1000);
