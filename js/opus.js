@@ -598,6 +598,14 @@ const silk_shell_code_table_offsets = new Uint8Array([
        135
 ]);
 
+const silk_sign_iCDF = new Uint8Array([
+       254,     49,     67,     77,     82,     93,     99,
+       198,     11,     18,     24,     31,     36,     45,
+       255,     46,     66,     78,     87,     94,    104,
+       208,     14,     21,     32,     42,     51,     66,
+       255,     94,    104,    109,    112,    115,    118,
+       248,     53,     69,     80,     88,     95,    102
+]);
 
 class EntDec {
     constructor(buf, storage) { // ec_dec_init
@@ -737,6 +745,11 @@ function silk_shell_decoder(pulses0, rangeDec, pulses4) {
 
 const silk_SMULBB = (a, b) => (a & 0xffff) * (b & 0xffff);
 const silk_RSHIFT = (a, shift) => a >>> shift;
+const silk_LSHIFT = (a, shift) => a << shift;
+const silk_ADD_LSHIFT = (a, b, shift) => a + silk_LSHIFT(b, shift);
+const silk_min = (a, b) => (((a) < (b)) ? (a) : (b));
+const silk_max = (a, b) => (((a) > (b)) ? (a) : (b));
+
 function silk_NLSF_unpack(ec_ix, pred_Q8, NLSF_CB, CB1_index) {
     let ec_sel_ptr = CB1_index * NLSF_CB.order / 2;
     for (let i = 0; i < NLSF_CB.order; i += 2) {
@@ -745,6 +758,32 @@ function silk_NLSF_unpack(ec_ix, pred_Q8, NLSF_CB, CB1_index) {
 		pred_Q8[ i     ] = NLSF_CB.pred_Q8[ i + ( entry & 1 ) * ( NLSF_CB.order - 1 ) ];
         ec_ix  [ i + 1 ] = silk_SMULBB( silk_RSHIFT( entry, 5 ) & 7, 2 * NLSF_QUANT_MAX_AMPLITUDE + 1 );
         pred_Q8[ i + 1 ] = NLSF_CB.pred_Q8[ i + ( silk_RSHIFT( entry, 4 ) & 1 ) * ( NLSF_CB.order - 1 ) + 1 ];
+    }
+}
+
+/* code_signs.c */
+const silk_enc_map = (a) => ( silk_RSHIFT( (a), 15 ) + 1 );
+const silk_dec_map = (a) => ( silk_LSHIFT( (a),  1 ) - 1 );
+function silk_decode_signs(rangeDec, pulses, length, signalType, quantOffsetType, sum_pulses) {
+    const icdf = new Uint8Array(2);
+    icdf[1] = 0;
+    let q_ptr = pulses.subarray(0);
+    const icdf_ptr = silk_sign_iCDF.subarray(silk_SMULBB( 7, silk_ADD_LSHIFT( quantOffsetType, signalType, 1 ) ));
+	length = silk_RSHIFT( length + SHELL_CODEC_FRAME_LENGTH/2, LOG2_SHELL_CODEC_FRAME_LENGTH );
+	for(let i = 0; i < length; i++ ) {
+        const p = sum_pulses[i];
+        if (p > 0) {
+            icdf[ 0 ] = icdf_ptr[ silk_min( p & 0x1F, 6 ) ];
+            for( j = 0; j < SHELL_CODEC_FRAME_LENGTH; j++ ) {
+                if( q_ptr[ j ] > 0 ) {
+                    /* attach sign */
+                    // #if 0 - removed
+                    /* implementation with shift, subtraction, multiplication */
+                    q_ptr[ j ] *= silk_dec_map( rangeDec.ec_dec_icdf(icdf, 8 ) );
+                }
+            }
+        }
+        q_ptr = q_ptr.subarray(SHELL_CODEC_FRAME_LENGTH);
     }
 }
 
@@ -882,16 +921,45 @@ function silk_decode_pulses(rangeDec, pulses, signalType, quantOffsetType, frame
 
         }
     }
-    console.log('PTELL3', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+    //console.log('PTELL3', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 
     /***************************************************/
     /* Shell decoding                                  */
     /***************************************************/
 	for (let i = 0; i < iter; i++) {
 		if( sum_pulses[ i ] > 0 ) {
-            silk_shell_decoder(pulses.slice(silk_SMULBB( i, SHELL_CODEC_FRAME_LENGTH )), rangeDec, sum_pulses[ i ] );
+            silk_shell_decoder(pulses.subarray(silk_SMULBB( i, SHELL_CODEC_FRAME_LENGTH )), rangeDec, sum_pulses[ i ] );
         } else {
+            // set to 0.
+            //silk_memset( &pulses[ silk_SMULBB( i, SHELL_CODEC_FRAME_LENGTH ) ], 0, SHELL_CODEC_FRAME_LENGTH * sizeof( pulses[0] ) )
         }
     }
-    console.log('PTELL4', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+    //console.log('PTELL4', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+
+	/***************************************************/
+    /* LSB Decoding                                    */
+    /***************************************************/
+    for( i = 0; i < iter; i++ ) {
+        if( nLshifts[ i ] > 0 ) {
+            const nLS = nLshifts[ i ];
+            pulses_ptr = pulses.subarray(silk_SMULBB( i, SHELL_CODEC_FRAME_LENGTH ));
+            for( k = 0; k < SHELL_CODEC_FRAME_LENGTH; k++ ) {
+                let abs_q = pulses_ptr[ k ];
+                for( j = 0; j < nLS; j++ ) {
+                    abs_q = silk_LSHIFT( abs_q, 1 );
+                    abs_q += ec_dec_icdf( psRangeDec, silk_lsb_iCDF, 8 );
+                }
+                pulses_ptr[ k ] = abs_q;
+            }
+            /* Mark the number of pulses non-zero for sign decoding. */
+            sum_pulses[ i ] |= nLS << 5;
+        }
+    }
+    //console.log('PTELL5', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
+
+    /****************************************/
+    /* Decode and add signs to pulse signal */
+    /****************************************/
+    silk_decode_signs( rangeDec, pulses, frame_length, signalType, quantOffsetType, sum_pulses );
+    //console.log('PTELL6', rangeDec.ec_tell(), rangeDec.nbits_total, rangeDec.val, rangeDec.rng);
 }
