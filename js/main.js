@@ -63,7 +63,7 @@ function encodeFunction(encodedFrame, controller) {
   }
   // We know that we are in silk mode now.
   // Follow what silk_Decode does
-  const dec = new EntDec(new Uint8Array(encodedFrame.data, 1), encodedFrame.data.byteLength - 1);
+  const rangeDec = new EntDec(new Uint8Array(encodedFrame.data, 1), encodedFrame.data.byteLength - 1);
   const channel_state = [{
     indices: {},
     frameLength: 320,
@@ -73,9 +73,9 @@ function encodeFunction(encodedFrame, controller) {
   }];
   for (let n = 0; n < 1; n++) {
     for (let i = 0; i < channel_state[n].nFramesPerPacket; i++) {
-      channel_state[n].VAD_flags[i] = dec.ec_dec_bit_logp(1);
+      channel_state[n].VAD_flags[i] = rangeDec.ec_dec_bit_logp(1);
     }
-    channel_state[n].LBRR_flag = dec.ec_dec_bit_logp(1);
+    channel_state[n].LBRR_flag = rangeDec.ec_dec_bit_logp(1);
   }
   for (let n = 0; n < 1; n++) {
     channel_state[n].LBRR_flags = new Array(3); // MAX_FRAMES_PER_PACKET
@@ -83,7 +83,7 @@ function encodeFunction(encodedFrame, controller) {
       if (channel_state[n].nFramesPerPacket === 1) {
         channel_state[n].LBRR_flags[0] = 1;
       } else {
-        LBRR_symbol = dec.ec_dec_icdf(silk_LBRR_flags_iCDF_ptr[channel_state[n].nFramesPerPacket - 2 ], 8 ) + 1;
+        LBRR_symbol = rangeDec.ec_dec_icdf(silk_LBRR_flags_iCDF_ptr[channel_state[n].nFramesPerPacket - 2 ], 8 ) + 1;
         for( i = 0; i < channel_state[ n ].nFramesPerPacket; i++ ) {
           channel_state[ n ].LBRR_flags[ i ] = silk_RSHIFT( LBRR_symbol, i ) & 1; // TODO
         }
@@ -95,13 +95,13 @@ function encodeFunction(encodedFrame, controller) {
     for (let n = 0; n < 1; n++) {
       if (channel_state[n].LBRR_flags[i]) {
         const pulses = new Uint16Array(MAX_FRAME_LENGTH);
-        const tell = dec.ec_tell();
+        const tell = rangeDec.ec_tell();
         // use EC_tell()
-        silk_decode_indices(channel_state[n], dec, 1, true, false);
-        silk_decode_pulses(dec, pulses, channel_state[n].indices.signalType,
+        silk_decode_indices(channel_state[n], rangeDec, 1, true, false);
+        silk_decode_pulses(rangeDec, pulses, channel_state[n].indices.signalType,
             channel_state[n].indices.quantOffsetType, channel_state[n].frameLength);
         // use EC_tell() again
-        console.log('we have lbrr', dec.ec_tell(), tell);
+        console.log('we have lbrr', rangeDec.ec_tell(), tell);
       }
     }
   }
