@@ -50,6 +50,7 @@ const offerOptions = {
   voiceActivityDetection: false
 };
 
+// Packet 390 from the fec12p dump. Has FEC.
 // encodeFunction({data: testPacket.buffer}, {enqueue: (s) => console.log(s) });
 // has 171 lbrr bits, end state is 174 201 54925537 76738212
 const testPacket = new Uint8Array([0x78, 0xc4, 0xb4, 0x38,
@@ -95,7 +96,7 @@ function encodeFunction(encodedFrame, controller) {
   // TODO
 
   // We fast-forward to this (which is always true here)
-  // if( lostFlag != FLAG_PACKET_LOST && channel_state[ 0 ].nFramesDecoded == 0 ) {
+  // if( lostFlag != FLAG_PACKET_LOST && channel_state[ 0 ].nFramesDecoded == 0 )
   if (lostFlag !== FLAG_PACKET_LOST && channel_state[0].nFramesDecoded === 0) {
     /* First decoder call for this payload */
     /* Decode VAD flags and LBRR flag */
@@ -127,27 +128,18 @@ function encodeFunction(encodedFrame, controller) {
           if (channel_state[n].LBRR_flags[i]) {
             const pulses = new Uint16Array(MAX_FRAME_LENGTH);
             const tell = rangeDec.ec_tell();
-            // use EC_tell()
             silk_decode_indices(channel_state[n], rangeDec, 1, true, false);
             silk_decode_pulses(rangeDec, pulses, channel_state[n].indices.signalType,
                 channel_state[n].indices.quantOffsetType, channel_state[n].frameLength);
-            // use EC_tell() again
             const lbrr_bits = rangeDec.ec_tell() - tell;
-            total_lbrr_bits += lbrr_bits;
+
+            // We are using the rangeDecoder offset (how many bytes it read), not ec_tell() which is how many
+            // bits it encoded.
+            total_lbrr_bits += 8 * rangeDec.offs; //lbrr_bits;
             lbrr_packets_sent++;
-            lbrr_percentage += 100 * lbrr_bits / (8 * rangeDec.storage);
-            console.log('we have lbrr', rangeDec.ec_tell(), tell, 8 * rangeDec.storage, Math.floor(100 * lbrr_bits / (8 * rangeDec.storage)));
-            /*
-            let s = "";
-            for (let fi = 0; fi < 10; fi++) {
-                for (let ji = 0; ji < MAX_FRAME_LENGTH / 10; ji++) {
-                    const val = ((pulses[fi * MAX_FRAME_LENGTH / 10 + ji]) & 0xff);
-                    s += "0x" + (val < 10 ? '0' : '') + val.toString(16) + ', ';
-                }
-                s += "\n";
-            }
-            console.log(s);
-            */
+            lbrr_percentage += 100 * rangeDec.offs / rangeDec.storage; //100 * lbrr_bits / (8 * rangeDec.storage);
+            //console.log('we have lbrr', rangeDec.ec_tell(), tell, 8 * rangeDec.storage, Math.floor(100 * lbrr_bits / (8 * rangeDec.storage)));
+            console.log('we have lbrr', rangeDec.ec_tell(), tell, rangeDec.offs, rangeDec.storage);
           }
         }
       }
