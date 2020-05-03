@@ -38,34 +38,6 @@ const N_RATE_LEVELS = 10;
 const SILK_MAX_PULSES = 16;
 
 
-const EC_SYM_BITS = 8;
-const EC_CODE_BITS = 32;
-const EC_SYM_MAX = (1 << EC_SYM_BITS) - 1;
-const EC_CODE_SHIFT = (EC_CODE_BITS-EC_SYM_BITS-1);
-const EC_CODE_TOP = (1<<(EC_CODE_BITS-1));
-const EC_CODE_BOT = (EC_CODE_TOP>>>EC_SYM_BITS); // note the >>>
-const EC_CODE_EXTRA = ((EC_CODE_BITS-2)%EC_SYM_BITS+1)
-
-const EC_ILOG = (_v) => { // ec_ilog(opus_uint32 _v){
-  let ret;
-  let m;
-  ret=!!_v;
-  m=!!(_v&0xFFFF0000)<<4;
-  _v>>>=m;
-  ret|=m;
-  m=!!(_v&0xFF00)<<3;
-  _v>>>=m;
-  ret|=m;
-  m=!!(_v&0xF0)<<2;
-  _v>>>=m;
-  ret|=m;
-  m=!!(_v&0xC)<<1;
-  _v>>>=m;
-  ret|=m;
-  ret+=!!(_v&0x2);
-  return ret;
-}
-
 const silk_LBRR_flags_2_iCDF = new Uint8Array([203, 150, 0]);
 const silk_LBRR_flags_3_iCDF = new Uint8Array([215, 195, 166, 125, 110, 82, 0]);
 const silk_LBRR_flags_iCDF_ptr = [
@@ -617,6 +589,34 @@ const silk_sign_iCDF = new Uint8Array([
        255,     94,    104,    109,    112,    115,    118,
        248,     53,     69,     80,     88,     95,    102
 ]);
+
+const EC_SYM_BITS = 8;
+const EC_CODE_BITS = 32;
+const EC_SYM_MAX = (1 << EC_SYM_BITS) - 1;
+const EC_CODE_SHIFT = (EC_CODE_BITS-EC_SYM_BITS-1);
+const EC_CODE_TOP = (1<<(EC_CODE_BITS-1));
+const EC_CODE_BOT = (EC_CODE_TOP>>>EC_SYM_BITS); // note the >>>
+const EC_CODE_EXTRA = ((EC_CODE_BITS-2)%EC_SYM_BITS+1)
+
+const EC_ILOG = (_v) => { // ec_ilog(opus_uint32 _v){
+  let ret;
+  let m;
+  ret=!!_v;
+  m=!!(_v&0xFFFF0000)<<4;
+  _v>>>=m;
+  ret|=m;
+  m=!!(_v&0xFF00)<<3;
+  _v>>>=m;
+  ret|=m;
+  m=!!(_v&0xF0)<<2;
+  _v>>>=m;
+  ret|=m;
+  m=!!(_v&0xC)<<1;
+  _v>>>=m;
+  ret|=m;
+  ret+=!!(_v&0x2);
+  return ret;
+}
 
 class EntDec {
     constructor(buf, storage) { // ec_dec_init
