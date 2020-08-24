@@ -150,13 +150,14 @@ function encodeFunction(encodedFrame, controller) {
 }
 
 function setupSenderTransform(sender) {
-  const senderStreams = sender.createEncodedAudioStreams();
+  const senderStreams = sender.createEncodedStreams ?
+    sender.createEncodedStreams() : sender.createEncodedAudioStreams();
   const transformStream = new TransformStream({
     transform: encodeFunction,
   });
   senderStreams.readableStream
       .pipeThrough(transformStream)
-      .pipeTo(senderStreams.writableStream);
+      .pipeTo(senderStreams.writable || senderStreams.writableStream);
 }
 
 function gotStream(stream) {
@@ -209,6 +210,7 @@ function call() {
   const servers = null;
   pc1 = new RTCPeerConnection({
     forceEncodedAudioInsertableStreams: true,
+    encodedInsertableStreams: true,
   });
   console.log('Created local peer connection object pc1');
   pc1.onicecandidate = e => onIceCandidate(pc1, e);
